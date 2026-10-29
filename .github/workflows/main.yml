@@ -1,0 +1,55 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Projeyi ac
+        run: |
+          ls -la
+          unzip -q "$(ls *.zip | head -n 1)" -d proj
+
+      - name: Gorselleri ekle (adlari otomatik duzelt)
+        run: |
+          mkdir -p proj/app/src/main/res/drawable
+          shopt -s nullglob
+          count=0
+          for f in *.png *.PNG *.jpg *.jpeg *.webp images/*; do
+            base=$(basename "$f")
+            ext=$(echo "${base##*.}" | tr 'A-Z' 'a-z')
+            name="${base%.*}"
+            n=$(echo "$name" | tr 'A-Z' 'a-z' | sed 's/ä/a/g;s/ö/o/g;s/ü/u/g;s/ß/ss/g;s/ç/c/g;s/ş/s/g;s/ğ/g/g;s/ı/i/g;s/[^a-z0-9]\+/_/g;s/^_//;s/_$//')
+            case "$n" in tank_*) ;; *) n="tank_$n" ;; esac
+            cp "$f" "proj/app/src/main/res/drawable/$n.$ext"
+            count=$((count+1))
+          done
+          echo "Eklenen gorsel sayisi: $count"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+
+      - name: APK derle
+        working-directory: proj
+        run: gradle assembleDebug --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TankHelper-APK
+          path: proj/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 3
